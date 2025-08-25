@@ -5,12 +5,13 @@ from log import logger
 from track import yolo_track_frame
 from ultralytics import YOLO
 import os 
+from save_track_moment import TrackVideoWriter
 
 def main():
     try:
         SOURCES = [
                     "videos/video5.mp4",
-                    #  "videos/video2.mp4",
+                     "videos/video2.mp4",
                     #"videos/video3.mp4",
                 ]
         logger.info("Video kaynakları alındı")
@@ -47,6 +48,7 @@ def main():
     prev_motion = {cam_id: False for cam_id in range(len(SOURCES))} # hareket takibini kontrol için
     tracking_active = {cam_id: False for cam_id in range(len(SOURCES))} # track takibi için 
     tracking_counter = {cam_id: 0 for cam_id in range(len(SOURCES))} # track işlemini hızlandırmak için
+    video_writers = {cam_id: TrackVideoWriter() for cam_id in range(len(SOURCES))}
     tracking_interval = 3 # frame atlayarak takip işleminin hızlandırılması 
     
     try:
@@ -77,6 +79,15 @@ def main():
                 if tracking_counter[cam_id] % tracking_interval == 0: 
                     frame = yolo_track_frame(frame, model, tracker)
             
+            if motion and not video_writers[cam_id].active:
+                video_writers[cam_id].start(cam_id, frame_id, frame)
+
+            if motion and video_writers[cam_id].active:
+                video_writers[cam_id].write(frame)
+
+            if not motion and video_writers[cam_id].active:
+                video_writers[cam_id].stop()
+                    
             # Ekrana bilgi yazdırılması 
             if motion: 
                 cv2.putText(frame, "Motion Detected", (10, 30), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
