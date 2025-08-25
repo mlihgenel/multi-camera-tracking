@@ -11,7 +11,7 @@ def main():
     try:
         SOURCES = [
                     "videos/video5.mp4",
-                    #"videos/video2.mp4",
+                    "videos/video2.mp4",
                     #"videos/video3.mp4",
                 ]
         logger.info("Video kaynakları alındı")
@@ -87,7 +87,7 @@ def main():
                 tracking_counter[cam_id] += 1
                 # Her framede değil belirtilen framede bir takip yapılması
                 if tracking_counter[cam_id] % tracking_interval == 0: 
-                    frame = yolo_track_frame(frame, model, tracker)
+                    frame = yolo_track_frame(cam_id, frame_id, frame, model, tracker)
             
             if motion and not video_writers[cam_id].active:
                 video_writers[cam_id].start(cam_id, frame)
