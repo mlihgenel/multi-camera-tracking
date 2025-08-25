@@ -1,48 +1,89 @@
-from ast import arg
 import cv2
 from multiprocessing import Process, Manager
 from camera_worker import camera_worker 
 from log import logger
-from track import yolo_worker
-
+from track import yolo_track_frame
+from ultralytics import YOLO
+import os 
 
 def main():
-    SOURCES = [
-                "securitycameravideos/video5.mp4",
-                # "securitycameravideos/video2.mp4"
-               ]
+    try:
+        SOURCES = [
+                    "videos/video5.mp4",
+                    #  "videos/video2.mp4",
+                    #"videos/video3.mp4",
+                ]
+        logger.info("Video kaynakları alındı")
+    except Exception as e:
+        logger.error(f"Videolar bulunamadı: {e}")
+        
+    try:
+        manager = Manager()
+        stop_event = manager.Event() 
+        result_queue = manager.Queue()
+        
+        logger.info("Processler oluşturuldu")
+        
+    except Exception as e:
+        logger.error(f"Process oluşturulamadı: {e}")            
 
-    manager = Manager()
-    stop_event = manager.Event() 
-    result_queue = manager.Queue()
-    yolo_queue = manager.Queue()
+    try:
+        MODEL_PATH = "models/"
+        MODEL_TYPE = os.path.join(MODEL_PATH, "yolo11n.pt")
+        model = YOLO(MODEL_TYPE)
+        tracker = "botsort.yaml"
+        logger.info(f"YOLO modeli oluşturuldu: {MODEL_TYPE.split("/")[1]} / tracker: {tracker}")
     
+    except Exception as e:
+        logger.error(f"YOLO modeli ya da tracker hatası: {e}")
+    
+            
     processes = []
     for cam_id, src in enumerate(SOURCES):
+        p = Process(target=camera_worker, args=(cam_id, src, result_queue, stop_event))
+        p.start()
+        processes.append(p)
         
-        p_cam = Process(target=camera_worker, args=(cam_id, src, result_queue, stop_event, yolo_queue))
-        p_cam.start()
-        processes.append(p_cam)
-        
-        p_yolo = Process(target=yolo_worker, args=(yolo_queue, stop_event))
-        p_yolo.start()
-        processes.append(p_yolo)
-        
-    prev_motion = {cam_id: False for cam_id in range(len(SOURCES))}
+    prev_motion = {cam_id: False for cam_id in range(len(SOURCES))} # hareket takibini kontrol için
+    tracking_active = {cam_id: False for cam_id in range(len(SOURCES))} # track takibi için 
+    tracking_counter = {cam_id: 0 for cam_id in range(len(SOURCES))} # track işlemini hızlandırmak için
+    tracking_interval = 3 # frame atlayarak takip işleminin hızlandırılması 
+    
     try:
         while True:
             cam_id, frame_id, time, frame, motion = result_queue.get()
             if frame is None:
                 cv2.destroyWindow(f"Cam{cam_id}")
                 continue
-            if motion and not prev_motion[cam_id]: 
-                logger.info(f"Cam{cam_id} Hareket başladı. {time}")
-                prev_motion[cam_id] = True 
                 
-            elif not motion:
+            # Hareket durumu kontrolü
+            if motion and not prev_motion[cam_id]: 
+                logger.info(f"Cam{cam_id} Hareket başladı")
+                prev_motion[cam_id] = True 
+                tracking_active[cam_id] = True
+                tracking_counter[cam_id] = 0
+                
+                
+            elif not motion and prev_motion[cam_id]:
+                logger.info(f"Cam{cam_id} Hareket bitti")
                 prev_motion[cam_id] = False
+                tracking_active[cam_id] = False
+                tracking_counter[cam_id] = 0
+            
+            # YOLO tracking - sadece hareket varken ve belirli aralıklarla
+            if motion and tracking_active[cam_id]:
+                tracking_counter[cam_id] += 1
+                # Her framede değil belirtilen framede bir takib yapılması
+                if tracking_counter[cam_id] % tracking_interval == 0: 
+                    frame = yolo_track_frame(frame, model, tracker)
+            
+            # Ekrana bilgi yazdırılması 
             if motion: 
-                cv2.putText(frame, "Motion Detected", (10, 300), cv2.FONT_HERSHEY_PLAIN, 2, 255, 2)
+                cv2.putText(frame, "Motion Detected", (10, 30), cv2.FONT_HERSHEY_PLAIN, 2, (0, 255, 0), 2)
+                if tracking_active[cam_id]:
+                    cv2.putText(frame, "Tracking Active", (10, 60), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+            else:
+                cv2.putText(frame, "No Motion", (10, 30), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
 
             cv2.imshow(f"Cam{cam_id}", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
