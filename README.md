@@ -56,10 +56,9 @@ Follow these steps to set up and run the project on your local machine.
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/multicam-trakcing.git
+git clone https://github.com/mlihgenel/multi-camera-tracking
 cd multicam-trakcing
 ```
-*Replace `your-username` with your actual GitHub username.*
 
 ### 3. Set Up a Virtual Environment
 
