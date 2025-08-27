@@ -60,7 +60,7 @@ def main():
         tracking_active = {cam_id: False for cam_id in range(len(SOURCES))} # track takibi için 
         tracking_counter = {cam_id: 0 for cam_id in range(len(SOURCES))} # track işlemini hızlandırmak için
         video_writers = {cam_id: TrackVideoWriter() for cam_id in range(len(SOURCES))} # track anlarını kaydetmek için
-        tracking_interval = 3 # frame atlayarak takip işleminin hızlandırılması 
+        tracking_interval = int(os.getenv("SKIP_FRAME")) # frame atlayarak takip işleminin hızlandırılması 
     except Exception as e: 
         logger.error(f"Gerekli dictler oluşturulamadı: {e}")
     
